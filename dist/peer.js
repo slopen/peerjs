@@ -1,4 +1,4 @@
-/*! peerjs build:0.3.13, development. Copyright(c) 2013 Michelle Bu <michelle@michellebu.com> */(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/*! peerjs build:0.3.14, development. Copyright(c) 2013 Michelle Bu <michelle@michellebu.com> */(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 module.exports.RTCSessionDescription = window.RTCSessionDescription ||
 	window.mozRTCSessionDescription;
 module.exports.RTCPeerConnection = window.RTCPeerConnection ||
@@ -162,7 +162,7 @@ DataConnection.prototype.close = function() {
 }
 
 /** Allows user to send data. */
-DataConnection.prototype.send = function(data, chunked) {
+DataConnection.prototype.send = function(data, chunked, unsafe) {
   if (!this.open) {
     this.emit('error', new Error('Connection is not open. You should listen for the `open` event before sending messages.'));
     return;
@@ -190,13 +190,13 @@ DataConnection.prototype.send = function(data, chunked) {
     // DataChannel currently only supports strings.
     if (!util.supports.sctp) {
       util.blobToBinaryString(blob, function(str) {
-        self._bufferedSend(str);
+        self [unsafe ? '_unsafeSend' : '_bufferedSend'] (ab);
       });
     } else if (!util.supports.binaryBlob) {
       // We only do this if we really need to (e.g. blobs are not supported),
       // because this conversion is costly.
       util.blobToArrayBuffer(blob, function(ab) {
-        self._bufferedSend(ab);
+        self [unsafe ? '_unsafeSend' : '_bufferedSend'] (ab);
       });
     } else {
       this._bufferedSend(blob);
@@ -207,10 +207,17 @@ DataConnection.prototype.send = function(data, chunked) {
 }
 
 DataConnection.prototype._bufferedSend = function(msg) {
+  this._bufAttempts = 0;
   if (this._buffering || !this._trySend(msg)) {
     this._buffer.push(msg);
     this.bufferSize = this._buffer.length;
   }
+}
+
+DataConnection.prototype._unsafeSend = function(msg){
+  try {
+    this._dc.send(msg);
+  } catch (e) {}
 }
 
 // Returns true if the send succeeds.
@@ -218,6 +225,7 @@ DataConnection.prototype._trySend = function(msg) {
   try {
     this._dc.send(msg);
   } catch (e) {
+    this._bufAttempts++;
     this._buffering = true;
 
     var self = this;
@@ -239,7 +247,7 @@ DataConnection.prototype._tryBuffer = function() {
 
   var msg = this._buffer[0];
 
-  if (this._trySend(msg)) {
+  if (this._bufAttempts < 15 && this._trySend(msg)) {
     this._buffer.shift();
     this.bufferSize = this._buffer.length;
     this._tryBuffer();
@@ -1587,12 +1595,12 @@ var util = {
   // Ensure alphanumeric ids
   validateId: function(id) {
     // Allow empty ids
-    return !id || /^[A-Za-z0-9_-]+(?:[ _-][A-Za-z0-9]+)*$/.exec(id);
+    return !id || /^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/.exec(id);
   },
 
   validateKey: function(key) {
     // Allow empty keys
-    return !key || /^[A-Za-z0-9_-]+(?:[ _-][A-Za-z0-9]+)*$/.exec(key);
+    return !key || /^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/.exec(key);
   },
 
 
@@ -2844,7 +2852,7 @@ var BinaryPack = require('js-binarypack');
 
 var util = {
   debug: false,
-  
+
   inherits: function(ctor, superCtor) {
     ctor.super_ = superCtor;
     ctor.prototype = Object.create(superCtor.prototype, {
@@ -2866,7 +2874,7 @@ var util = {
   },
   pack: BinaryPack.pack,
   unpack: BinaryPack.unpack,
-  
+
   log: function () {
     if (util.debug) {
       var copy = [];
@@ -2888,7 +2896,7 @@ var util = {
     function setZeroTimeoutPostMessage(fn) {
       timeouts.push(fn);
       global.postMessage(messageName, '*');
-    }		
+    }
 
     function handleMessage(event) {
       if (event.source == global && event.data == messageName) {
@@ -2907,7 +2915,7 @@ var util = {
     }
     return setZeroTimeoutPostMessage;
   }(this)),
-  
+
   blobToArrayBuffer: function(blob, cb){
     var fr = new FileReader();
     fr.onload = function(evt) {
