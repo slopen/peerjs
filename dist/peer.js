@@ -1,4 +1,4 @@
-/*! peerjs build:0.3.14, development. Copyright(c) 2013 Michelle Bu <michelle@michellebu.com> */(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/*! peerjs build:0.3.13, development. Copyright(c) 2013 Michelle Bu <michelle@michellebu.com> */(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 module.exports.RTCSessionDescription = window.RTCSessionDescription ||
 	window.mozRTCSessionDescription;
 module.exports.RTCPeerConnection = window.RTCPeerConnection ||
@@ -190,7 +190,7 @@ DataConnection.prototype.send = function(data, chunked, unsafe) {
     // DataChannel currently only supports strings.
     if (!util.supports.sctp) {
       util.blobToBinaryString(blob, function(str) {
-        self [unsafe ? '_unsafeSend' : '_bufferedSend'] (ab);
+        self [unsafe ? '_unsafeSend' : '_bufferedSend'] (str);
       });
     } else if (!util.supports.binaryBlob) {
       // We only do this if we really need to (e.g. blobs are not supported),
@@ -206,18 +206,18 @@ DataConnection.prototype.send = function(data, chunked, unsafe) {
   }
 }
 
+DataConnection.prototype._unsafeSend = function(msg){
+  try {
+    this._dc.send(msg);
+  } catch (e) {}
+}
+
 DataConnection.prototype._bufferedSend = function(msg) {
   this._bufAttempts = 0;
   if (this._buffering || !this._trySend(msg)) {
     this._buffer.push(msg);
     this.bufferSize = this._buffer.length;
   }
-}
-
-DataConnection.prototype._unsafeSend = function(msg){
-  try {
-    this._dc.send(msg);
-  } catch (e) {}
 }
 
 // Returns true if the send succeeds.
@@ -247,7 +247,7 @@ DataConnection.prototype._tryBuffer = function() {
 
   var msg = this._buffer[0];
 
-  if (this._bufAttempts < 15 && this._trySend(msg)) {
+  if (this._bufAttempts < 25 && this._trySend(msg)) {
     this._buffer.shift();
     this.bufferSize = this._buffer.length;
     this._tryBuffer();
